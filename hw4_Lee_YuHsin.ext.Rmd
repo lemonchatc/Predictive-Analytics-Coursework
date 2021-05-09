@@ -1,0 +1,189 @@
+---
+title: "Time Series Regression and Decomposition"
+author: "Kathy Yu Hsin Lee"
+date: "4/29/2021"
+output: html_document
+---
+**Load packages and data set**
+```{r}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(fpp2)
+
+setwd("/Users/KathyLee/UCI MSBA/Course Material/05 Spring Quarter/BANA288 Predictive Analytics/Homework")
+data <-  read.csv("hw4_bike_share_day.csv")
+```
+<br>
+**1. Perform all necessary cleaning and transformation of the data to make it useful for linear regression. That is, transform all qualitative variables to factors. No need to set up individual indicator columns in this assignment. Add a time trend variable and a quadratic time trend (trend squared) variable to the data set.**
+```{r}
+# Transform dteday to date 
+data$dteday <- as.Date(data$dteday, format = "%m/%d/%Y")
+
+# Transform qualitative variables (season, mnth, weekday, weathersit) to factors
+data$season <- as.factor(data$season)
+data$mnth <- as.factor(data$mnth)
+data$weekday <- as.factor(data$weekday)
+data$weathersit <- as.factor(data$weathersit)
+
+# Add a quadratic time trend variable dayID2
+data <- data %>% mutate(dayID2 = dayID^2)
+```
+
+<br><br>
+
+**2. Which of the variables could be considered as candidates for seasonal variables in this data set? Explain you answer clearly. Hint:  What makes a variable a “seasonal” variable?**
+```{r}
+season <- ggplot(data, aes(season, cnt)) + geom_point()
+mnth <- ggplot(data, aes(mnth, cnt)) + geom_point()
+wkday <- ggplot(data, aes(weekday, cnt)) + geom_point()
+weathr <- ggplot(data, aes(weathersit, cnt)) + geom_point()
+grid.arrange(season, mnth, wkday, weathr, ncol = 2)
+```
+
+- Season, month, weekday and weathersit could be considered as candidates for seasonal variables in this data set. From the above plots, we can see that more people rent a bike during Summer and Fall. Apparently, less people rent a bike during January and February and when weathersit = 3. 
+
+<br><br>
+
+**3. Run a regression model with time, time-squared, and the month variables. Comment on the quality of the model. Is there a significant trend in the data set? Squared trend? Is there significant seasonality? Compute the RMSE.**
+```{r}
+mod1 <- lm(cnt ~ dayID + dayID2 + mnth, data = data)
+summary(mod1)
+
+# Compute the RMSE
+rmse1 <- (sum(mod1$residuals^2)/(nrow(data)-3-1))^0.5
+```
+
+- There is a significant trend (dayID). The squared trend (dayID2) is significant at alpha = 0.05 level but not at alpha = 0.01 level. There is a significant seasonality during mnth3 to mnth10 and mnth12. The RMSE value for mod1 is 1039.974 with a R-squared value of 0.713. Overall, this model is good as 71.3% of the variation in count of total rental bikes in this dataset is explained by time, time-squared. and the month variables.
+<br><br>
+
+**4. Repeat question 3 by replacing the “month” variables with the “season” variables. Compare to the model of question 3. Which is preferred and why? Compute the RMSE.**
+```{r}
+mod2 <- lm(cnt ~ dayID + dayID2 + season, data = data)
+summary(mod2)
+
+# Compute the RMSE
+rmse2 <- (sum(mod2$residuals^2)/(nrow(data)-3-1))^0.5
+```
+
+- Overall, all the variables in mod2 is significant at alpha = 0.05 level. The RMSE value of mod2 is 1169.2392. Compared with mod1 from question 3, the RMSE value is higher and the R-squared value (0.6372) is lower. Therefore, mod1 from question 3 is preferred.
+<br><br>
+
+**5. Create a (new) time series object, “cntts”, from the count (cnt) variable with frequency 7. Plot the new time series version of the count variable in time. Describe any signals in this series. Plot the autocorrelation function for the series. Is there significant autocorrelation? Explain.**
+```{r}
+# Create a time series object, "cntts"
+cntts <- ts(data$cnt, start = 1, frequency = 7)
+
+# Plot the time series version of cnt in time
+autoplot(cntts) +
+  ggtitle("Bike Shared Amount") +
+  ylab("Number of Bike Shared") +
+  xlab("Week")
+
+# Plot the autocorrelation function
+ggAcf(cntts)
+```
+
+- There is a slow decrease in the ACF as the lags increase and scalloped shape. The highest ACF value is approximately 0.9, while the lowest is 0.7. 
+<br><br>
+
+**6. Generate a 28-period forecast using random walk forecast with drift and a second forecast using the seasonal naïve forecast. Compute the RMSE for each forecast. Run time series cross-validation for each of the two forecasted series. Report RMSEs from the cross-validation routines.**
+```{r}
+# Random walk forecast with drift
+mod.rwf <- rwf(cntts, 28, drift = TRUE)
+rmse.rwf <- (mean(residuals(rwf(cntts, drift = TRUE))^2, na.rm = TRUE))^0.5
+
+# Time series cross-validation
+cv.rwf <- tsCV(cntts, rwf, drift = TRUE, h = 28)
+rmse.cv.rwf <- (mean(cv.rwf^2, na.rm = TRUE))^0.5
+
+# Seasonal naïve forecast 
+mod.sen <- snaive(cntts, 28)
+rmse.sen <- (mean(residuals(snaive(cntts))^2, na.rm = TRUE))^0.5
+
+# Time series cross-validation
+cv.sen <- tsCV(cntts, snaive, h = 28)
+rmse.cv.sen <- (mean(cv.sen^2, na.rm = TRUE))^0.5
+
+```
+
+- The RMSE value from the random walk forecast with drift and from the cross-validation is 1064.106 and 1471.651 respectively. The RMSE value from the seasonal naive forecast and from the cross-validation is 1341.106 and 1404.557 respectively. 
+<br><br>
+
+**7. Estimate a 5-period (centered) moving average model for the count data, that is, a moving average model with order equal to 5. What is the RMSE (root mean squared error) of this model?  Try a few other odd values (e.g., 11 and 17) for the number periods and compute RMSEs to see if a better model can be found. Plot these models on the same graph. Report the RMSE for the best “ma” model.**
+```{r}
+mod.ma5 <- ma(cntts, 5, centre = TRUE)
+rmse.ma5 <- (sum((mod.ma5[3:729] - cntts[3:729])^2)/length(cntts[3:729]))^0.5
+
+mod.ma3 <- ma(cntts, 3, centre = TRUE)
+rmse.ma3 <- (sum((mod.ma3[2:730] - cntts[2:730])^2)/length(cntts[2:730]))^0.5
+
+mod.ma11 <- ma(cntts, 11, centre = TRUE)
+rmse.ma11 <- (sum((mod.ma11[6:726] - cntts[6:726])^2)/length(cntts[6:726]))^0.5
+
+# Plot models on same graph
+ma5 <- autoplot(cntts, series = "Actual Amount") + 
+  autolayer(mod.ma5, series = "ma5") + 
+  xlab("Week") + ylab("Number of Bike Shared") +
+  ggtitle("Bike Shared Amount") +
+  scale_colour_manual(values = c("Actual Amount"="grey50","ma5"="blue"))
+
+ma3 <- autoplot(cntts, series = "Actual Amount") + 
+  autolayer(mod.ma3, series = "ma3") + 
+  xlab("Week") + ylab("Number of Bike Shared") +
+  ggtitle("Bike Shared Amount") +
+  scale_colour_manual(values = c("Actual Amount"="grey50","ma3"="blue"))
+
+ma11 <- autoplot(cntts, series = "Actual Amount") + 
+  autolayer(mod.ma11, series = "ma11") + 
+  xlab("Week") + ylab("Number of Bike Shared") +
+  ggtitle("Bike Shared Amount") +
+  scale_colour_manual(values = c("Actual Amount"="grey50","ma11"="blue"))
+
+grid.arrange(ma5, ma3, ma11, ncol = 1)
+```
+
+- The RMSE value from ma5 is 707.596. The RMSE value from ma11 is 868.022. The RMSE value from the best model (ma3) is 570.445. 
+
+<br><br>
+
+**8. Execute the classical additive and multiplicative decompositions on the count (“cnt”) series. Based on the two decompositions, what is observed regarding trend and seasonal effect? Compute the RMSE from the remainder series for both these decompositions.**
+```{r}
+# Addictive decomposition
+dc.add <- decompose(cntts, type = "additive")
+autoplot(dc.add) + ggtitle("Bike Shared Amount") + xlab("Week")
+
+# Multiplicative decomposition
+dc.mul <- decompose(cntts, type = "multiplicative")
+autoplot(dc.mul) + ggtitle("Bike Shared Amount") + xlab("Week")
+
+# Compute RMSE from the remainder series for both decompositions
+rmse.dc.add <- (mean((dc.add$random[4:728])^2))^0.5
+fit.mul <- dc.mul$trend * dc.mul$seasonal
+rmse.dc.mul <- (mean(((cntts[4:728]-fit.mul[4:728]))^2))^0.5
+```
+
+- The RMSE value from the remainder series for addictive decomposition is 781.381. The RMSE value from the remainder series for multiplicative decomposition is 782.531. 
+<br><br>
+
+**9. Apply the STL decomposition to the count (“cnt”) series. Use s.window = 11 and t.window = 7 for these required parameters. Compute the RMSE from the remainder series.**
+```{r}
+dc.stl <- stl(cntts, s.window = 11, t.window = 7, robust = TRUE)
+autoplot(dc.stl) + ggtitle("STL Decomposition") + xlab("Week")
+
+# Compute RMSE
+rmse.dc.stl <- (mean((dc.stl$time.series[,3])^2))^0.5
+```
+
+- The RMSE value is 750.819
+<br><br>
+
+**10.	Compare all RMSEs computed. Which one had the lowest RMSE? Was the best procedure a forecasting procedure? If not, which of the forecasting procedures have the lowest RMSE? Summarize, in a sentence or two, the signals detected in the count data based on the work in this assignment.**   
+```{r}
+tab <- matrix(c(rmse.rwf, rmse.sen, rmse.ma3, rmse.ma5, rmse.ma11, rmse.dc.add, rmse.dc.mul, rmse.dc.stl, rmse.cv.rwf, rmse.cv.sen), ncol = 10, byrow = FALSE)
+colnames(tab) <- c("RWF", "SN", "MA3", "MA5", "MA11", "Additive", "Multiplicative", "STL", "RWF.CV", "SN.CV")
+rownames(tab) <- c("RMSE")
+tab
+```
+
+- According to the above table, MA3 (moving average model with three day period) has the lowest RMSE value. Moving average model is a forecasting procedure. This shows that it is better to capture trends in three day period. Moreover, seasons and months with a warmer and more stable weather tend to have higher number of bike shared.

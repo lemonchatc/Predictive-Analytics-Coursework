@@ -1,0 +1,319 @@
+---
+title: "Linear Model Selection and Regularization"
+author: "Kathy Lee"
+date: "4/22/2021"
+output: html_document
+---
+**Load packages and dataset**
+```{r}
+library(dplyr)
+library(leaps)
+
+setwd("/Users/KathyLee/UCI MSBA/Course Material/05 Spring Quarter/BANA288 Predictive Analytics/Homework")
+data <-  read.csv("hw3_vio_crime.csv")
+```
+<br>
+
+**1. Prepare the data for analysis. The data set provided with this assignment has had columns removed from the 128, so that it begins with 103 variables. After reading in the data exam the structure. There are several columns that, as factors, have many levels (>30). Remove columns 1, 2, and 3. Also, there is one other column that should be removed using the “>30” criteria. Use this set of columns as the “prepared data set” for the remainder of the assignment.**
+```{r}
+# Remove columns 1, 2, and 3
+dat <- subset(data, select = -c(state, communityname, fold))
+str(dat)
+```
+<br><br>
+
+**2. Use the entire prepared data set for this part. Can we perform best subsets regression to pick a “good” model? Why or why not? Explain what is happening.**
+```{r}
+#best <- regsubsets(VioCrime ~ ., dat)
+#summary(best)
+```
+- It is not suggested to perform best subsets regression on datasets with many variables. This may lead to overfitting and high variance of the coefficient estimates. When trying to perform best subsets regression, it shows error that the exhaustive search will be slow. 
+
+<br><br>
+
+**3. Use the entire prepared data set for this part. Perform forward stepwise regression to pick a “good” model by evaluating adjusted R-squared, Mallows Cp, and BIC. How many variables were in the models was selected using these criteria?**
+```{r}
+step <- regsubsets(VioCrime ~ ., dat, nvmax = 100, method = "forward")
+step.sum <- summary(step)
+```
+**Plot adjusted R-squared, Mallows Cp, and BIC to evaluate**
+```{r}
+par(mfrow=c(2,2))
+
+# Adjusted R-squared
+plot(step.sum$rsq, xlab = "Number of Variables", ylab ="R-squared")
+plot(step.sum$adjr2, xlab = "Number of Variables", 
+     ylab ="Adj R-squared")
+which.max(step.sum$adjr2)
+
+# Mallows Cp
+maxar2 <- which.max(step.sum$adjr2)
+points(maxar2, step.sum$adjr2[maxar2], col = "red", cex = 2, pch = 20)
+plot(step.sum$cp, xlab = "Number of Variables", ylab ="Mallows Cp")
+mincp <- which.min(step.sum$cp)
+mincp
+
+# BIC
+points(mincp, step.sum$cp[mincp], col = "blue", cex = 2, pch = 20)
+plot(step.sum$bic, xlab = "Number of Variables", 
+     ylab ="Bayesian Info Crit")
+minbic <- which.min(step.sum$bic)
+minbic
+points(minbic, step.sum$bic[minbic], col = "green", cex = 2, pch = 20)
+```
+<br>
+
+- According to the result of adjusted R-squared, Mallows Cp, and BIC, 64, 51, and 15 variables were selected respectively.
+
+<br><br>
+**Run models on suggested variables**
+```{r}
+names(coef(step, 64))
+
+# mod.rsq1 (64 variables)
+mod.rsq1 <- lm(VioCrime ~ racepctblack + racePctWhite + racePctHisp + agePct12t29 + agePct16t24 + numbUrban + pctUrban + medIncome + pctWWage +  pctWFarmSelf + pctWInvInc + pctWSocSec + pctWRetire + medFamInc + whitePerCap + blackPerCap + indianPerCap + AsianPerCap + OtherPerCap + HispPerCap +  PctPopUnderPov + PctLess9thGrade + PctBSorMore + PctEmploy + PctEmplManu + PctOccupManu + PctOccupMgmtProf + MalePctDivorce + MalePctNevMarr + FemalePctDiv + TotalPctDiv + PctKids2Par + PctWorkMomYoungKids + PctWorkMom + NumIlleg + PctIlleg + NumImmig + PctSpeakEnglOnly + PctNotSpeakEnglWell +  PctLargHouseOccup + PersPerOccupHous + PersPerRentOccHous + PctPersOwnOccup + PctPersDenseHous + PctHousLess3BR + MedNumBR + HousVacant + PctHousOccup + PctHousOwnOcc + PctVacantBoarded + PctVacMore6Mos + OwnOccLowQuart + OwnOccMedVal + RentLowQ + RentHighQ + MedRent + MedRentPctHousInc + MedOwnCostPctInc + MedOwnCostPctIncNoMtg + NumInShelters + NumStreet + PctForeignBorn + PctSameCity85 + PctUsePubTrans, data = dat)
+summary(mod.rsq1)
+```
+```{r}
+names(coef(step, 51))
+
+# mod.mcp1 (51 variables)
+mod.mcp1 <- lm(VioCrime ~ racepctblack + racePctWhite + agePct12t29 + agePct16t24 + numbUrban + pctUrban + medIncome + pctWWage + pctWFarmSelf + pctWInvInc + pctWRetire + medFamInc + whitePerCap + indianPerCap + AsianPerCap + OtherPerCap + HispPerCap + PctPopUnderPov + PctLess9thGrade + PctBSorMore + PctEmploy + PctEmplManu + PctOccupManu + MalePctDivorce + MalePctNevMarr + FemalePctDiv + TotalPctDiv + PctKids2Par + PctWorkMom + PctIlleg + PctSpeakEnglOnly + PctNotSpeakEnglWell + PctLargHouseOccup + PersPerOccupHous + PersPerRentOccHous + PctPersOwnOccup + PctPersDenseHous + PctHousLess3BR + HousVacant + PctHousOwnOcc + PctVacantBoarded + PctVacMore6Mos + OwnOccLowQuart + RentLowQ + MedRent + MedRentPctHousInc + MedOwnCostPctInc + MedOwnCostPctIncNoMtg + NumStreet + PctForeignBorn + PctUsePubTrans, data = dat)
+summary(mod.mcp1) #0.6901
+```
+```{r}
+names(coef(step, 15))
+
+# mod.bic1 (15 variables)
+mod.bic1 <- lm(VioCrime ~ racepctblack + racePctWhite + agePct12t29 + numbUrban + pctUrban + OtherPerCap + MalePctDivorce + FemalePctDiv + PctKids2Par + PctWorkMom + PctIlleg + PctPersDenseHous + HousVacant + MedOwnCostPctIncNoMtg + NumStreet, data = dat)
+summary(mod.bic1) #0.6665
+```
+```{r}
+anova(mod.mcp1, mod.rsq1)
+anova(mod.bic1, mod.mcp1)
+```
+- The three models have similar multiple R-squared value. When we compare mod.mcp1 with mod.rsq1, p-value = 0.04106 > alpha = 0.01. Therefore, mod.mcp1 is as good as explaining VioCrime as mod.rsq1. In the same way, mod.bic1 is as good as mod.mcp1. I will pick mod.bic1 because it is more simple than the other two models. 
+<br><br>
+
+**4. Repeat question 3 for backward stepwise regression. Is a “good” model in backward different from forward stepwise? Explain. Summarize what stepwise regression is providing.**
+```{r}
+step2 <- regsubsets(VioCrime ~ ., dat, nvmax = 99, method = "backward")
+step2.sum <- summary(step2)
+```
+**Plot adjusted R-squared, Mallows Cp, and BIC to evaluate**
+```{r}
+par(mfrow=c(2,2))
+
+plot(step2.sum$rsq, xlab = "Number of Variables", ylab ="R-squared")
+plot(step2.sum$adjr2, xlab = "Number of Variables", 
+     ylab ="Adj R-squared")
+maxar2 <- which.max(step2.sum$adjr2)
+maxar2
+points(maxar2, step2.sum$adjr2[maxar2], col = "red", cex = 2, pch = 20)
+
+plot(step2.sum$cp, xlab = "Number of Variables", ylab ="Mallows Cp")
+mincp <- which.min(step2.sum$cp)
+mincp
+points(mincp, step2.sum$cp[mincp], col = "blue", cex = 2, pch = 20)
+
+plot(step2.sum$bic, xlab = "Number of Variables", 
+     ylab ="Bayesian Info Crit")
+minbic <- which.min(step2.sum$bic)
+minbic
+points(minbic, step2.sum$bic[minbic], col = "green", cex = 2, pch = 20)
+```
+<br>
+```{r}
+names(coef(step2, 58))
+
+mod.rsq2 <- lm(VioCrime ~ racepctblack + racePctHisp + agePct12t29 + pctUrban + medIncome + pctWWage + pctWFarmSelf + pctWInvInc + pctWSocSec + pctWRetire + medFamInc + whitePerCap + blackPerCap + indianPerCap + AsianPerCap + OtherPerCap + HispPerCap + PctPopUnderPov + PctLess9thGrade + PctEmploy + PctEmplManu + PctOccupManu + PctOccupMgmtProf + MalePctDivorce + MalePctNevMarr + TotalPctDiv + PctKids2Par + PctWorkMomYoungKids + PctWorkMom + NumIlleg + PctIlleg + NumImmig + PctNotSpeakEnglWell + PctLargHouseOccup + PersPerOccupHous + PersPerRentOccHous + PctPersOwnOccup + PctPersDenseHous + PctHousLess3BR + MedNumBR + HousVacant + PctHousOccup + PctHousOwnOcc + PctVacantBoarded + PctVacMore6Mos + OwnOccLowQuart  + OwnOccMedVal + RentLowQ + RentHighQ + MedRent + MedRentPctHousInc + MedOwnCostPctInc + MedOwnCostPctIncNoMtg + NumInShelters + NumStreet + PctForeignBorn + PctSameCity85 + PctUsePubTrans, data = dat)
+summary(mod.rsq2)
+```
+```{r}
+names(coef(step2, 49))
+
+mod.mcp2 <- lm(VioCrime ~ racepctblack + racePctHisp + agePct12t29 + pctUrban + medIncome + pctWWage + pctWFarmSelf + pctWInvInc + pctWRetire + medFamInc + whitePerCap + indianPerCap+OtherPerCap + HispPerCap +      PctPopUnderPov + PctLess9thGrade + PctEmploy + PctEmplManu + PctOccupManu + PctOccupMgmtProf + MalePctDivorce   + MalePctNevMarr + TotalPctDiv + PctKids2Par + PctWorkMom + NumIlleg + PctIlleg + NumImmig + PctNotSpeakEnglWell + PctLargHouseOccup + PersPerOccupHous + PersPerRentOccHous + PctPersOwnOccup + PctPersDenseHous + HousVacant + PctHousOccup + PctHousOwnOcc + PctVacantBoarded + PctVacMore6Mos + OwnOccLowQuart + OwnOccMedVal + RentLowQ + MedRent + MedOwnCostPctIncNoMtg + NumInShelters + NumStreet + PctForeignBorn + PctSameCity85 + PctUsePubTrans, data = dat)
+summary(mod.mcp2)
+```
+```{r}
+names(coef(step2, 14))
+
+mod.bic2 <- lm(VioCrime ~ racepctblack + pctUrban + pctWWage + PctEmploy + MalePctDivorce + PctKids2Par + PctWorkMom + PctIlleg + PctPersDenseHous + HousVacant + RentLowQ + MedRent + MedOwnCostPctIncNoMtg + NumStreet, data = dat)
+summary(mod.bic2)
+```
+```{r}
+anova(mod.mcp2, mod.rsq2)
+anova(mod.bic2, mod.mcp2)
+```
+- The three models have similar multiple R-squared value. When we compare mod.mcp2 with mod.rsq2, p-value = 0.2107 > alpha = 0.05. Therefore, mod.mcp2 is as good as explaining VioCrime as mod.rsq2. In the same way, mod.bic2 is as good as mod.mcp2. I will pick mod.bic2 because it is more simple than the other two models. 
+<br>
+- The number of variables of suggested by adjusted R-squared, Mallows Cp, and BIC is less than forward stepwise. According to adjusted R-squared, 58 variables should be selected. According to Mallows Cp, 49 variables should be selected. According to BIC, 14 variables should be selected. Moreover, the variables selected by forward stepwise is similar but not identical to variables chosen by backward stepwise. 
+<br>
+- The backward selection approach begins with full least squares model with all variables, then removes the least useful predictor one at a time. The forward selection approach begins with a model without any variables, then adds one variable at a time. 
+<br><br>
+
+**5. Use your own 6-digit identification number as a seed. Randomly select approximately 50% of the rows for a training data set and include the rest of the observations in a test data set. Run the “all-variables-in” regression model on the training data. What is the R-squared for this model on the training data?  What is the RMSE? What is the RMSE when using this model to predict on the test data? Is overfitting an issue?**
+```{r}
+# Training and test data sets
+set.seed(524084)
+train <- sample(997, 997)
+dat.train <- dat[train,]
+dat.test <- dat[-train,]
+
+# Run a "all-variables-in" regression on training data set
+mod.all <- lm(VioCrime ~ ., dat.train)
+summary(mod.all) #R-squared value: 0.6964
+
+# Run a "all-variables-in" regression on test data set
+mod.all2 <- lm(VioCrime ~ ., dat.test)
+summary(mod.all2) #R-squared value: 0.7269
+```
+
+```{r}
+# Compute the RSS, MSE, and RMSE on training and test data
+rss.train <- sum(mod.all$residuals^2)
+mse.train <- rss.train/(nrow(dat.train)-100-1)
+rmse.train <- mse.train^0.5
+
+yhat <- predict(mod.all2, dat.test)
+rss.test <- sum((dat.test$cnt - yhat)^2)
+mse.test <- rss.test/(nrow(dat.test)-100-1)
+rmse.test <- mse.test^0.5
+
+tab <- matrix(c(rss.train, mse.train, rmse.train, rss.test, mse.test, 
+                rmse.test), ncol = 2, byrow = FALSE)
+colnames(tab) <- c("Training", "Test")
+rownames(tab) <- c("RSS", "MSE", "RMSE")
+tab
+```
+- The R-squared value is 0.6964 for training data and 0.7269 for test data. The RMSE of training data set is 0.13977825 and the RMSE of test data set is 0. This indicates that the model fit test data very well. There is a problem of overfitting. 
+<br><br>
+
+**6. Using the all-in model from question 5 run 5-Fold and 10-Fold cross-validation. Save the MSEs and RMSEs? Compare to question 5. Why don’t we run LOOCV here?**
+```{r}
+library(boot)
+
+mod <- glm(VioCrime ~ ., data = dat.train)
+
+mod.fld <- cv.glm(dat.train, mod, K = 5)
+MSE <- mod.fld$delta[2]
+RMSE <- MSE^0.5
+
+mod.fld2 <- cv.glm(dat.train, mod, K = 10)
+MSE2 <- mod.fld2$delta[2]
+RMSE2 <- MSE2^0.5
+
+tab2 <- matrix(c(MSE, RMSE, MSE2, RMSE2), ncol = 2, byrow = FALSE)
+colnames(tab2) <- c("5-Fold", "10-Fold")
+rownames(tab2) <- c("MSE", "RMSE")
+tab2
+```
+- Compared with the model in question 5, both 5-Fold model and 10-fold model have slightly smaller value of RMSE and slightly larger value of MSE. <br>
+- LOOCV has the potential to be computationally expensive and very time consuming when the number of predictors is large. Therefore, in this case, using k-fold CV is a better choice.
+<br><br>
+
+**7. Repeat the process described on page 253 of James et al. First set up the data appropriate. Then set up the lambda grid. Then run “glmnet” using the training data and the lambda grid. Then use the best lambda from the glmnet run to fit a ridge regression model on the training data. Then predict y for the test data using this model and compute MSE/RMSE.**
+```{r}
+library(glmnet)
+
+x <- model.matrix(VioCrime ~ ., dat)[,-1]
+y <- dat$VioCrime
+
+# Set up the lambda grid
+grid <- 10^seq(10, -2, length = 100)
+
+# training and test data sets
+set.seed(582038)
+train <- sample(1:nrow(x), nrow(x)/2)
+x.train <- x[train,]
+y.train <- y[train]
+x.test <- x[-train,]
+y.test <- y[-train]
+dat.glm.train <- dat[train,]
+dat.glm.test <- dat[-train,]
+
+# Run a ridge regression model on training data
+ridge.mod <- glmnet(x.train, y.train, alpha = 0, lambda = grid, threst = 1e-12)
+
+# Set up matrices to store the coefficients, predictions and errors
+ridge.coeff <- matrix(0, nrow = ncol(x), ncol = 100)
+ridge.pred <- matrix(0,nrow = length(y.test), ncol = 100)
+testerr <- matrix(0, nrow = 100, ncol = 1)
+
+#  Save values for 100 models
+for (j in 1:100) {
+  ridge.coeff[,j] <- ridge.mod$beta[,j]
+  ridge.pred[,j] <- predict(ridge.mod, s = grid[j], newx = x.test)
+  testerr[j] <- mean((ridge.pred[,j] - y.test)^2)
+}
+
+#  Plot the test MSEs for the 100 models
+plot(testerr, xlab = "Model Number", ylab = "Test Mean Suqare Error")
+which.min(testerr)
+
+# Find best lambda
+lambda <- ridge.mod$lambda[100]
+lambda
+
+# Predict y for the test data
+ridge.pred <- predict(ridge.mod, s = lambda, newx = x.test)
+
+# Compute MSE and RMSE
+mse.ridge <- mean((ridge.pred - y.test)^2)
+mse.ridge
+rmse.ridge <- mse.ridge^0.5
+rmse.ridge
+```
+- The MSE value is 0.01815556 and the RMSE value is 0.1347426.
+<br><br>
+
+
+**8. Now run cv.glmnet to perform cross validation on the training data using ridge regression. Note you do not need “grid” here, cv.glmnet chooses that automatically. Once again pick the best lambda from glmnet to fit a ridge regression model on the training data. Then predict y for the test data and compute MSE/RMSE.**
+```{r}
+# Cross Validation
+ridge.mod2 <- cv.glmnet(x, y, alpha = 0)
+lambda2 <- ridge.mod2$lambda.min
+
+# Predict y for the test data
+ridge.pred2 <- predict(ridge.mod, s = lambda2, newx = x.test)
+
+# Compute MSE and RMSE
+mse.ridge2 <- mean((ridge.pred2 - y.test)^2)
+mse.ridge2
+rmse.ridge2 <- mse.ridge2^0.5
+rmse.ridge2
+```
+- The MSE value is 0.01817913 and the RMSE value is 0.13483.
+<br><br>
+
+**9. Repeat question 8 using LASSO.**
+```{r}
+# LASSO
+lasso.mod <- glmnet(x.train, y.train, alpha = 1, lambda = grid, thresh = 1e-12)
+lasso.mod2 <- cv.glmnet(x, y, alpha = 1)
+lambda3 <- lasso.mod2$lambda.min
+
+# Predict y for the test data
+lasso.pred <- predict(lasso.mod, s = lambda3, newx = x.test)
+
+# Compute MSE and RMSE
+mse.lasso <- mean((lasso.pred - y.test)^2)
+mse.lasso
+rmse.lasso <- mse.lasso^0.5
+rmse.lasso
+```
+- The MSE value is 0.01821683 and the RMSE value is 0.1349697.
+<br><br>
+
+**10. Based on the work in questions 5-9, what is a “fair” estimate of the MSE/RMSE. Explain.**   
+```{r}
+tab3 <- matrix(c(mse.train, rmse.train, mse.test, rmse.test, MSE, RMSE, MSE2, RMSE2, mse.ridge, rmse.ridge, mse.ridge2, rmse.ridge2, mse.lasso, rmse.lasso), ncol = 7, byrow = FALSE)
+colnames(tab3) <- c("training", "test", "5-fold", "10-fold", "ridge(glmnet)", "ridge(cv.glmnet)", "LASSO")
+rownames(tab3) <- c("MSE", "RMSE")
+tab3
+```
+- The above table demonstrates the MSE and RMSE value of Q5 (training, test), Q6 (5-fold, 10-fold), Q7 (ridge regression running glmnet), Q8 (ridge regression running cv.glmnet), and Q9 (LASSO). 
+<br>
+- From the table, we can tell that the model of Q7 (ridge regression running glmnet) has the smallest MSE and RMSE value. Overall, the models of Q6-Q9 all have similar estimate of MSE and RMSE. For this dataset, the model of Q7 (ridge regression running glmnet) performs the best.
+
+<br><br>
