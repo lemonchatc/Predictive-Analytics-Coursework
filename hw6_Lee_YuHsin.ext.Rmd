@@ -1,0 +1,248 @@
+---
+title: "ARIMA Models"
+author: "Kathy Yu Hsin Lee"
+date: "5/15/2021"
+output: html_document
+---
+**Load packages**
+```{r}
+library(dplyr)
+library(ggplot2)
+library(fpp2)
+library(MASS)
+
+setwd("/Users/KathyLee/UCI MSBA/Course Material/05 Spring Quarter/BANA288 Predictive Analytics/Homework")
+```
+
+<br><br>
+
+**1.	Generate 200 observations of the following series. In each case, plot the series generated. Also, graph the autocorrelation and partial auto-correlation functions. Finally, in each case, comment on how the pattern in the auto- and partial auto-correlation functions are related to the series generated.**
+
+**a. White noise**
+```{r}
+# Generate 200 observations
+set.seed(413527)
+data <- ts(rnorm(200))
+
+# Graph the autocorrelation and partial auto-correlation functions
+ggtsdisplay(data)
+```
+
+- From the above graphs, we can see that there is no autocorrelation and any significant lag. All the values are between the blue dash lines.
+
+<br>
+
+**b. AR(1) with parameter, phi1 = 0.6**
+```{r}
+mod1 <- ts(data.frame(matrix(rep(0),200,1)))
+mod1[1,1] <- data[1]
+for (i in 2:200) {
+  mod1[i,1] <- 0.6*mod1[i-1,1] + data[i] 
+}
+
+# Graph the autocorrelation and partial auto-correlation functions
+ggtsdisplay(mod1)
+```
+
+- From the ACF plot, we can see that Lag1, Lag2, and Lag3 are much higher than other lags. In the PACF plot, there is only one spike at lag1. We can indicate that this is a AR(1) model.
+
+<br>
+**c. AR(2) with parameters, phi1 = 0.6 and phi2 = 0.3**
+```{r}
+mod2 <- ts(data.frame(matrix(rep(0),200,1)))
+mod2[1,1] <- data[1]
+mod2[2,1] <- data[2]
+for (i in 3:200) {
+  mod2[i,1] <- 0.6*mod2[i-1,1] + 0.3*mod2[i-2,1] + data[i]
+}
+
+# Graph the autocorrelation and partial auto-correlation functions
+ggtsdisplay(mod2)
+```
+
+- From the ACF plot, we can see the data is trended. As lag increases, the value decreases. In the PACF plot, there are two spikes (Lag1 and Lag2). We can indicate that this is a AR(2) model.
+
+<br>
+
+**d. AR(2) with parameters, phi1 = 0.8 and phi2 = -0.3**
+```{r}
+mod3 <- ts(data.frame(matrix(rep(0),200,1)))
+mod3[1,1] <- data[1]
+mod3[2,1] <- data[2]
+for (i in 3:200) {
+  mod3[i,1] <- 0.8*mod3[i-1,1] + (-0.3)*mod3[i-2,1] + data[i] 
+}
+
+# Graph the autocorrelation and partial auto-correlation functions
+ggtsdisplay(mod3)
+```
+
+- In the ACF plot, the value of lag1 is the highest. In the PACF plot, there are two spikes (Lag1 and Lag2). We can indicate that this is a AR(2) model.
+
+<br>
+
+**e. MA(1) with parameter, theta1 = 0.6**
+```{r}
+mod4 <- ts(data.frame(matrix(rep(0),200,1)))
+mod4[1,1] <- data[1]
+for (i in 2:200) {
+  mod4[i,1] <- data[i] + 0.6*data[i-1]
+}
+
+# Graph the autocorrelation and partial auto-correlation functions
+ggtsdisplay(mod4)
+```
+
+- Looking at the ACF plot, there is only one spike and other values are between two blue dash lines. The PACF plot has similar trend as the ACF plot. From this, we can indicate that this is a MA(1) model.
+
+<br>
+
+**f. ARMA(1,1) with parameters, phi1 = 0.5 and theta1 = 0.4**
+```{r}
+mod5 <- arima(data, order = c(1,0,1), fixed = c(0.5, 0.4, NA))
+
+# Graph the autocorrelation and partial auto-correlation functions
+mod5 %>% residuals() %>% ggtsdisplay()
+```
+
+- Looking at the ACF plot, Lag1 is the highest, while others remain between the two blue dash lines. Similar as the ACF plot, after two spikes in the beginning, other value remain between the lines. From this, we can indicate that this is a ARMA(1,1) model.
+
+<br>
+
+**g. ARIMA(1,1,1) with parameters, phi1 = 0.5 and theta1 = 0.4**
+```{r}
+mod6 <- arima(data, order = c(1,1,1), fixed = c(0.5, 0.4))
+summary(mod6)
+
+# Graph the autocorrelation and partial auto-correlation functions
+mod6 %>% residuals() %>% ggtsdisplay()
+```
+
+- There is one spike in the ACF plot. In the PACF plot, the value decreases as Lag increases. 
+
+<br>
+
+**h. ARIMA(1,1,1)(0,1,0)[4] with parameters, phi1 = 0.5 and theta1 = 0.4**
+```{r}
+mod7 <- arima(data, order = c(1,1,1), seasonal = list(order = c(0,1,0), period = 4), fixed = c(0.5, 0.4))
+summary(mod7)
+
+# Graph the autocorrelation and partial auto-correlation functions
+mod7 %>% residuals() %>% ggtsdisplay()
+```
+
+- There are four obvious spikes in the ACF plot and the PACF plot. Both plot show a trend of decreasing near to zero as lag increases.
+
+<br><br>
+
+**2.	For the US Quarterly GDP data, complete the following steps**
+```{r}
+# Set up the data set for analysis. If necessary, find a suitable Box-Cox transformation for the data set (see Hyndman, section 3.2)
+gdp <- read.csv("hw6_USGDP.csv")
+gdp$Date <- as.Date(gdp$Date)
+gdpts <- ts(gdp$USGDP, frequency = 4)
+
+# Box-Cox transformation
+lam <- BoxCox.lambda(gdpts)
+gdp.tran <- BoxCox(gdpts, lambda = lam)
+
+# Fit a suitable ARIMA model using auto.arima()
+mod.gdp <- auto.arima(gdp.tran)
+summary(mod.gdp)
+
+# Try 3 other ARIMA models by experimenting with the model orders, p and q
+mod.gdp2 <- arima(gdp.tran, order = c(1,1,1))
+summary(mod.gdp2)
+
+mod.gdp3 <- arima(gdp.tran, order = c(1,1,0))
+summary(mod.gdp3)
+
+mod.gdp4 <- arima(gdp.tran, order = c(2,2,2))
+summary(mod.gdp4)
+
+# Choose the preferred model and check the residual diagnostics. Report observations
+checkresiduals(mod.gdp)
+
+# Transform the data back to the original form
+trans <- function(y, lambda = 0) {
+    if (lambda == 0L) { exp(y) }
+    else { exp(log(1 + lambda * y)/lambda) }
+}
+
+gdp.back <- trans(gdp.tran, lambda = lam)
+
+# Produce forecasts for the next two years.
+mod.gdp0 <- auto.arima(gdp.back)
+summary(mod.gdp0)
+for.arima1 <- forecast(mod.gdp0, h = 8)
+
+autoplot(for.arima1, series = "Forecast") +
+  autolayer(gdp.back, series = "Acutual Data") +
+  ylab("GDP") +
+  xlab("Quarter")
+
+# Compare the results with those obtained from running ets() on the non-transformed series.
+mod.ets1 <- ets(gdpts)
+summary(mod.ets1)
+
+for.ets1 <- forecast(mod.ets1, h = 8)
+
+autoplot(for.ets1, series = "Forecast") +
+  autolayer(gdpts, series = "Acutual Data") +
+  ylab("GDP") +
+  xlab("Quarter")
+```
+
+- When we look at the residuals plot of mod.gdp, we can see that the residuals are normal distributed.
+- Compared with the forecast of ARIMA(3,1,1)(0,1,2)[4] model, the ETS(M,A,M) model has a similar forecast. The RMSE value of the ARIMA model is 17190.36, while the RMSE value of the ETS model is 17998.28. The AICc value of ARIMA model is smaller than the ETS model as well. 
+
+<br><br>
+
+**3.	Repeat the previous question using the US single family home sales data.**
+```{r}
+# Set up the data set for analysis.  If necessary, find a suitable Box-Cox transformation for the data set (see Hyndman, section 3.2)
+home <-  read.csv("hw6_one_family_homes.csv")
+home$Date <- as.Date(home$Date, format = "%m/%d/%y")
+homets <- ts(home$SFH_Sales)
+
+# Fit a suitable ARIMA model using auto.arima()
+mod.home <- auto.arima(homets)
+summary(mod.home)
+
+# Try 3 other ARIMA models by experimenting with the model orders, p and q
+mod.home2 <- arima(homets, order = c(1,1,1))
+summary(mod.home2)
+
+mod.home3 <- arima(homets, order = c(2,1,2))
+summary(mod.home3)
+
+mod.home4 <- arima(homets, order = c(2,2,2))
+summary(mod.home4)
+
+# Choose the preferred model and check the residual diagnostics.  Report observations
+checkresiduals(mod.home3)
+
+# Produce forecasts for the next two years.  Do not forget to transform the data back to the original form, if necessary!
+for.arima2 <- forecast(mod.home3, h = 24)
+
+autoplot(for.arima2, series = "Forecast") +
+  autolayer(homets, series = "Acutual Data") +
+  ylab("Sales ($1000)") +
+  xlab("Month")
+
+# Compare the results with those obtained from running ets() on the non-transformed series.
+mod.ets2 <- ets(homets)
+summary(mod.ets2)
+
+for.ets2 <- forecast(mod.ets2, h = 24)
+
+autoplot(for.ets2, series = "Forecast") +
+  autolayer(homets, series = "Acutual Data") +
+  ylab("Sales ($1000)") +
+  xlab("Month")
+```
+
+- The residuals of mod.home is normal distributed. The ACF plot shows two spikes. 
+- The forecast of the ARIMA(2,1,2) model and the ETS(M,N,N) model is only slightly different. The forecast of ETS model is flat, while the forecast of the ARIMA model is slightly decreasing. Overall, both models have similar forecast. The RMSE value of ETS model is 45.04044, and the RMSE value of ARIMA model is 44.74362. 
+
+
